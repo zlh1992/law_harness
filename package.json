@@ -1,0 +1,24 @@
+{
+  "name": "desktop-law-harness",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "npm --prefix bridge test && node --test gateway/test/*.test.mjs plugins/law-wiki-graph/test/*.test.mjs plugins/session-files/test/*.test.mjs && ./.venv/bin/python -m unittest discover -s services/test -p 'test_*.py'",
+    "start:proxy": "./bin/start-proxy.sh",
+    "start:harness": "./bin/start-harness.sh",
+    "start:public-gateway": "./bin/start-public-gateway.sh",
+    "start:public": "./bin/start-public.sh",
+    "install:integrations": "./install/install-law-integrations.sh",
+    "install:internet": "./install/install-internet-tools.sh",
+    "start": "./bin/start-all.sh",
+    "health": "./bin/healthcheck.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.7",
+    "@law-harness/dsh-law-wiki-graph": "file:plugins/law-wiki-graph",
+    "@law-harness/dsh-session-files": "file:plugins/session-files"
+  }
+}

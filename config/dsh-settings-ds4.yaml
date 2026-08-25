@@ -1,0 +1,19 @@
+# DS4 目标模式：Harness -> Mac 网关 :4011 -> DS4 Server :8000 -> DeepSeek-V4-Flash
+# 仅当 Mac 网关已经部署并可用时切换；不要把此文件与 Codex 订阅模式混用。
+ui-onboarding:
+  welcomeNoticeVersion: 2026-08-13.1
+llm-pi-ai:
+  providers:
+    openai:
+      baseURL: https://mac-llm.local:4011/v1
+      models:
+        - id: deepseek-v4-flash
+          name: DeepSeek V4 Flash · Local DS4
+          contextWindow: 100000
+          maxTokens: 32768
+      apiKeyEnv: DS4_GATEWAY_TOKEN
+agent-default-model:
+  provider: openai
+  model: deepseek-v4-flash
+  reasoningEffort: medium
+

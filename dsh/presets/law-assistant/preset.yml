@@ -1,0 +1,3 @@
+name: 法务助手（受限）
+description: 使用法务技能、LLM Wiki、受控互联网研究、Local Memory 和 Semantica 决策溯源的只读法务风险分流 Agent。
+order: 1

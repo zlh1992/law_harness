@@ -1,0 +1,8 @@
+{
+  "name": "law-harness-memory-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@beledarian/mcp-local-memory": "2.0.1"
+  }
+}

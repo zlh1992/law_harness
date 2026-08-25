@@ -1,0 +1,169 @@
+# Host-level additions for the law-only DeepSeek Harness deployment.
+- id: agent-presets
+  config:
+    default: law-assistant
+    # DSH loads user presets from $DSH_HOME/.agent-presets.  The launcher
+    # materialises the reviewed project preset there before the web service
+    # starts, so the preset is visible to the runtime as well as to config dump.
+    roots: []
+    includeUserRoot: true
+
+# `insert` adds new top-level plugin rows; id-targeted entries above only
+# override components already supplied by the Web profile.
+- insert:
+    - id: session-files
+      name: '@law-harness/dsh-session-files'
+      config:
+        root: !!js process.env.LAW_SESSION_FILES_ROOT
+        extractorPython: !!js process.env.LAW_SESSION_FILE_PYTHON
+        extractorEntry: !!js process.env.LAW_SESSION_FILE_EXTRACTOR
+
+    - id: law-wiki-graph
+      name: '@law-harness/dsh-law-wiki-graph'
+      config:
+        root: !!js process.env.LAW_WIKI_ROOT
+
+    - id: mcp-memory
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: memory
+        transport: stdio
+        command: !!js process.env.LAW_MEMORY_PYTHON
+        args:
+          - !!js process.env.LAW_MEMORY_MCP_ENTRY
+        env:
+          MEMORY_DB_PATH: !!js process.env.LAW_MEMORY_DB
+        toolCallTimeoutMs: 30000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3
+
+    - id: mcp-law-wiki
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: law_wiki
+        transport: stdio
+        command: !!js process.env.LAW_WIKI_PYTHON
+        args:
+          - !!js process.env.LAW_WIKI_MCP_ENTRY
+        env:
+          LAW_WIKI_ROOT: !!js process.env.LAW_WIKI_ROOT
+        toolCallTimeoutMs: 30000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3
+
+    - id: mcp-internet-research
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: internet_research
+        transport: stdio
+        command: !!js process.env.LAW_RESEARCH_PYTHON
+        args:
+          - !!js process.env.LAW_RESEARCH_MCP_ENTRY
+        env:
+          TAVILY_API_KEY: !!js process.env.TAVILY_API_KEY
+          EXA_API_KEY: !!js process.env.EXA_API_KEY
+          SERPAPI_API_KEY: !!js process.env.SERPAPI_API_KEY
+          RESEARCH_AUDIT_PATH: !!js process.env.LAW_RESEARCH_AUDIT_PATH
+          FREE_SEARCH_AVAILABLE: 'true'
+          INTERNET_RESEARCH_PROVIDER_TIMEOUT_SECONDS: '12'
+          INTERNET_RESEARCH_FREE_SEARCH_SIMPLE_TIMEOUT_SECONDS: '40'
+          INTERNET_RESEARCH_FREE_SEARCH_DEEP_TIMEOUT_SECONDS: '20'
+          INTERNET_RESEARCH_DEEP_TIME_BUDGET_SECONDS: '75'
+          SEARCH_MCP_CACHE_DIR: !!js process.env.LAW_FREE_SEARCH_ROUTER_CACHE_PATH
+          SEARCH_MCP_CACHE_MAX_MB: '256'
+          SEARCH_MCP_CACHE_TTL_SECONDS: '604800'
+          SEARCH_MCP_DEFAULT_ENGINES: '["duckduckgo","mojeek","googlenews","bing"]'
+          SEARCH_MCP_RATE_LIMIT_PER_MINUTE: '12'
+          SEARCH_MCP_FETCH_RATE_LIMIT_PER_MINUTE: '8'
+          SEARCH_MCP_REQUEST_TIMEOUT: '12'
+          SEARCH_MCP_RESCUE_TIMEOUT: '6'
+          SEARCH_MCP_FETCH_STRATEGY: 'auto'
+          SEARCH_MCP_BROWSER_HEADLESS: 'true'
+          SEARCH_MCP_BROWSER_POOL_SIZE: '1'
+          SEARCH_MCP_MAX_CONTENT_CHARS: '30000'
+          SEARCH_MCP_MAX_RESPONSE_BYTES: '10000000'
+          SEARCH_MCP_SAFESEARCH: 'moderate'
+          SEARCH_MCP_REGION: 'wt-wt'
+          SEARCH_MCP_ACCEPT_LANGUAGE: 'zh-CN,zh;q=0.9,en;q=0.8'
+          SEARCH_MCP_ALLOW_PRIVATE_HOSTS: 'false'
+          SEARCH_MCP_DOCUMENT_ROOT: ''
+          SEARCH_MCP_DOWNLOAD_ENABLED: 'false'
+        toolCallTimeoutMs: 180000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3
+
+    - id: mcp-free-search
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: free_search
+        transport: stdio
+        command: !!js process.env.LAW_FREE_SEARCH_PYTHON
+        args:
+          - !!js process.env.LAW_FREE_SEARCH_MCP_ENTRY
+        env:
+          SEARCH_MCP_CACHE_DIR: !!js process.env.LAW_FREE_SEARCH_READER_CACHE_PATH
+          SEARCH_MCP_CACHE_MAX_MB: '256'
+          SEARCH_MCP_CACHE_TTL_SECONDS: '604800'
+          SEARCH_MCP_DEFAULT_ENGINES: '["duckduckgo","mojeek","googlenews","bing"]'
+          SEARCH_MCP_RATE_LIMIT_PER_MINUTE: '12'
+          SEARCH_MCP_FETCH_RATE_LIMIT_PER_MINUTE: '8'
+          SEARCH_MCP_REQUEST_TIMEOUT: '12'
+          SEARCH_MCP_RESCUE_TIMEOUT: '6'
+          SEARCH_MCP_FETCH_STRATEGY: 'auto'
+          SEARCH_MCP_BROWSER_HEADLESS: 'true'
+          SEARCH_MCP_BROWSER_POOL_SIZE: '1'
+          SEARCH_MCP_MAX_CONTENT_CHARS: '30000'
+          SEARCH_MCP_MAX_RESPONSE_BYTES: '10000000'
+          SEARCH_MCP_SAFESEARCH: 'moderate'
+          SEARCH_MCP_REGION: 'wt-wt'
+          SEARCH_MCP_ACCEPT_LANGUAGE: 'zh-CN,zh;q=0.9,en;q=0.8'
+          SEARCH_MCP_ALLOW_PRIVATE_HOSTS: 'false'
+          SEARCH_MCP_DOCUMENT_ROOT: ''
+          SEARCH_MCP_DOWNLOAD_ENABLED: 'false'
+        toolCallTimeoutMs: 180000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3
+
+    - id: mcp-agent-reach
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: agent_reach
+        transport: stdio
+        command: !!js process.env.LAW_AGENT_REACH_PYTHON
+        args:
+          - !!js process.env.LAW_AGENT_REACH_MCP_ENTRY
+        env:
+          AGENT_REACH_AUDIT_PATH: !!js process.env.LAW_AGENT_REACH_AUDIT_PATH
+        toolCallTimeoutMs: 120000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3
+
+    - id: mcp-semantica
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: semantica
+        transport: stdio
+        command: !!js process.env.LAW_SEMANTICA_PYTHON
+        args:
+          - !!js process.env.LAW_SEMANTICA_MCP_ENTRY
+        env:
+          PYTHONPATH: !!js process.env.LAW_SEMANTICA_SOURCE_PATH
+          SEMANTICA_GRAPH_PATH: !!js process.env.LAW_SEMANTICA_GRAPH_PATH
+          SEMANTICA_PROVENANCE_PATH: !!js process.env.LAW_SEMANTICA_PROVENANCE_PATH
+          SEMANTICA_TRACE_PATH: !!js process.env.LAW_SEMANTICA_TRACE_PATH
+          LAW_MODEL_ID: !!js process.env.CODEX_MODEL
+        toolCallTimeoutMs: 30000
+        failOnStartupError: true
+        reconnect:
+          enabled: true
+          maxAttempts: 3

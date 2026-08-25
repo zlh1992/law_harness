@@ -1,0 +1,13 @@
+{
+  "name": "deepseek-harness-gpt56-sol-bridge",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node proxy.mjs",
+    "test": "node --test test/proxy.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
