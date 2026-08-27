@@ -39,6 +39,18 @@ cd /Users/zlh1992_home/Desktop/law_harness
 
 访问 [http://127.0.0.1:3080](http://127.0.0.1:3080)。`bin/start-public.sh` 已禁用，不会创建公网隧道。
 
+## 完整重启
+
+重启本机 DS4F、Harness Agent 与前端，同时保留 `$DSH_HOME`（默认 `.dsh-home/`）中的历史会话：
+
+```bash
+./bin/restart-all.sh
+```
+
+脚本会等待 `deepseek-v4-flash` 模型目录和前端都就绪后打开浏览器。自动化或远程终端中可使用 `./bin/restart-all.sh --no-open`；需要让当前终端监督两个服务时使用 `./bin/restart-all.sh --foreground`。运行日志保存在 `.logs/`。
+
+macOS 可双击桌面上的 `Restart DeepSeek Harness.command`。桌面项目只是快捷链接，实际启动代码保存在仓库的 `bin/Restart DeepSeek Harness.command`。
+
 ## 配置与验证
 
 - `.env` 中的 `DS4_API_KEY=local` 只是 OpenAI 兼容客户端占位值，本地服务不要求真实密钥。

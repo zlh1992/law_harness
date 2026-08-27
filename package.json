@@ -10,6 +10,7 @@
     "install:integrations": "./install/install-law-integrations.sh",
     "install:internet": "./install/install-internet-tools.sh",
     "start": "./bin/start-all.sh",
+    "restart": "./bin/restart-all.sh",
     "health": "./bin/healthcheck.sh"
   },
   "engines": {

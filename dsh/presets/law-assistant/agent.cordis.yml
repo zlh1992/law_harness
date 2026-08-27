@@ -26,6 +26,8 @@
   config:
     providerName: legal-filesystem
     includeDefaultRoots: true
+    customSkillDirs:
+      - !!js process.env.LAW_PROJECT_SKILLS_DIR
     watch: true
 
 - id: tool-skill

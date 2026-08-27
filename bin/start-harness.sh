@@ -32,6 +32,7 @@ export DS4_API_KEY="${DS4_API_KEY:-local}"
 export DS4_MODEL_ID="deepseek-v4-flash"
 export LAW_MODEL_ID="$DS4_MODEL_ID"
 export LAW_AGENT_PRESETS_DIR="$ROOT_DIR/dsh/presets"
+export LAW_PROJECT_SKILLS_DIR="$ROOT_DIR/.dsh/skills"
 export LAW_MEMORY_PYTHON="$ROOT_DIR/.venv/bin/python"
 export LAW_MEMORY_MCP_ENTRY="$ROOT_DIR/services/local_memory_mcp.py"
 export LAW_MEMORY_DB="$ROOT_DIR/.data/memory/memory.db"
@@ -69,7 +70,8 @@ export DSH_TELEMETRY_MODE="${DSH_TELEMETRY_MODE:-DISABLED}"
 export HARNESS_HOST="127.0.0.1"
 export HARNESS_PORT="${HARNESS_PORT:-3080}"
 export DSH_VERSION="${DSH_VERSION:-0.1.0-rc.7}"
-if ! curl -fsS --max-time 5 "http://127.0.0.1:8000/v1/models" | rg -q '"id":"deepseek-v4-flash"'; then
+DS4_MODELS="$(curl -fsS --max-time 5 "http://127.0.0.1:8000/v1/models" 2>/dev/null || true)"
+if [[ "$DS4_MODELS" != *'"id":"deepseek-v4-flash"'* ]]; then
   echo "本地 DS4F 尚未就绪；请确认 http://127.0.0.1:8000/v1/models 可访问。" >&2
   exit 2
 fi
