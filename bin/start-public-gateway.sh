@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The public gateway belongs to the disabled public-access stack.
+echo "Public gateway is disabled in this local-only checkout." >&2
+exit 2
+
+: <<'PUBLIC_GATEWAY_DISABLED'
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ -f "$ROOT_DIR/.env" ]]; then
   set -a
@@ -22,3 +27,4 @@ export LAW_SESSION_FILES_ROOT="${LAW_SESSION_FILES_ROOT:-$ROOT_DIR/workspaces/se
 export PUBLIC_UPLOAD_ROOT="${PUBLIC_UPLOAD_ROOT:-$LAW_SESSION_FILES_ROOT}"
 
 exec node "$ROOT_DIR/gateway/public-gateway.mjs"
+PUBLIC_GATEWAY_DISABLED

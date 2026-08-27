@@ -2,10 +2,10 @@
 .env.*
 !.env.example
 .dsh-home/
+.dsh-home-qa/
 .venv/
 .data/
 .logs/
-.codex-proxy-work/
 .ds4-kv/
 .tools/
 *.log

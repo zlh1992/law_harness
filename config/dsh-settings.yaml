@@ -1,17 +1,35 @@
-# 法务助手模式：Harness -> 本机桥接代理 -> Codex CLI ChatGPT 订阅 -> GPT-5.6 Sol
+# 法务助手模式：Harness -> 本机 DS4F OpenAI-compatible API -> DeepSeek-V4-Flash
 ui-onboarding:
   welcomeNoticeVersion: 2026-08-13.1
 llm-pi-ai:
   providers:
-    openai:
-      baseURL: http://127.0.0.1:4010/v1
+    deepseek:
+      displayName: Local DeepSeek DS4F
+      api: openai-completions
+      baseURL: http://127.0.0.1:8000/v1
+      apiKeyEnv: DS4_API_KEY
+      streamIdleTimeoutMs: 120000
+      compat:
+        thinkingFormat: openai
+        supportsReasoningEffort: true
+      retryPolicy:
+        mode: normal
+        maxRetries: 1
+        backoff:
+          initialDelayMs: 500
+          maxDelayMs: 2000
+          jitterRatio: 0.1
       models:
-        - id: gpt-5.6-sol
-          name: GPT-5.6 Sol · Codex Subscription Bridge
-          contextWindow: 1050000
-          maxTokens: 128000
-      apiKeyEnv: DSH_PROXY_TOKEN
+        - id: deepseek-v4-flash
+          name: DeepSeek V4 Flash · Local DS4F
+          contextWindow: 393216
+          maxTokens: 8192
+          input:
+            - text
+          reasoningEfforts:
+            high: high
+            max: max
 agent-default-model:
-  provider: openai
-  model: gpt-5.6-sol
-  reasoningEffort: medium
+  provider: deepseek
+  model: deepseek-v4-flash
+  reasoningEffort: high

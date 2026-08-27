@@ -22,9 +22,9 @@ const DEFAULTS = Object.freeze({
   publicUploadSessionMaxBytes: DEFAULT_SESSION_MAX_BYTES,
   loginAttempts: 5,
   loginWindowMs: 15 * 60 * 1000,
-  publicModelProvider: "openai",
-  publicModelId: "gpt-5.6-sol",
-  publicModelReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+  publicModelProvider: "deepseek",
+  publicModelId: "deepseek-v4-flash",
+  publicModelReasoningEfforts: ["high", "max"],
 });
 
 // The public web UI only needs to select the pre-registered law workspace and
@@ -64,7 +64,7 @@ export function configFromEnv(env = process.env) {
     publicWorkspaceId: env.PUBLIC_WORKSPACE_ID || "",
     lawAgentPreset: "law-assistant",
     publicModelProvider: env.PUBLIC_MODEL_PROVIDER || DEFAULTS.publicModelProvider,
-    publicModelId: env.PUBLIC_MODEL_ID || env.CODEX_MODEL || DEFAULTS.publicModelId,
+    publicModelId: env.PUBLIC_MODEL_ID || env.DS4_MODEL_ID || DEFAULTS.publicModelId,
     publicModelReasoningEfforts: String(env.PUBLIC_MODEL_REASONING_EFFORTS || DEFAULTS.publicModelReasoningEfforts.join(","))
       .split(",")
       .map((value) => value.trim())
@@ -454,9 +454,13 @@ export async function startGateway(config = configFromEnv()) {
   return server;
 }
 
-if (import.meta.url === new URL(process.argv[1], "file:").href) {
-  startGateway().catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
-    process.exitCode = 1;
-  });
-}
+/*
+ * Direct public-gateway startup is disabled in this local-only checkout.
+ *
+ * if (import.meta.url === new URL(process.argv[1], "file:").href) {
+ *   startGateway().catch((error) => {
+ *     process.stderr.write(error instanceof Error ? error.stack : String(error));
+ *     process.exitCode = 1;
+ *   });
+ * }
+ */

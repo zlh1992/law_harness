@@ -1,6 +1,6 @@
 param(
   [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
-  [string]$MacBaseUrl = "http://127.0.0.1:4010/v1"
+  [string]$Ds4ApiKey = "local"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,13 +16,14 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { throw "npm 不在 PA
 
 $dshHome = Join-Path $ProjectRoot ".dsh-home"
 New-Item -ItemType Directory -Force -Path $dshHome | Out-Null
-$settings = Get-Content (Join-Path $ProjectRoot "config\dsh-settings.yaml") -Raw
-$settings = $settings -replace "http://127\.0\.0\.1:4010/v1", $MacBaseUrl
-Set-Content -Path (Join-Path $dshHome "settings.yaml") -Value $settings -Encoding utf8
+Copy-Item (Join-Path $ProjectRoot "config\dsh-settings.yaml") (Join-Path $dshHome "settings.yaml") -Force
+$credentialPath = Join-Path $dshHome ".credentials.yaml"
+Set-Content -Path $credentialPath -Value "DS4_API_KEY: $Ds4ApiKey" -Encoding utf8
 $env:DSH_HOME = $dshHome
+$env:DS4_API_KEY = $Ds4ApiKey
 
 if (-not (Get-Command dsh -ErrorAction SilentlyContinue)) {
   npm install --global @deepseek-ai/dsh@0.1.0-rc.7
 }
-Write-Host "Harness 安装完成。请设置 `$env:DSH_PROXY_TOKEN 为 Mac 网关 Token。" -ForegroundColor Green
+Write-Host "Harness 安装完成，模型请求将直连本机 DS4F deepseek-v4-flash。" -ForegroundColor Green
 Write-Host "启动：dsh web（当前 PowerShell）"

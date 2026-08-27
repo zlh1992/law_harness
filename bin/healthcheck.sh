@@ -7,11 +7,9 @@ if [[ -f "$ROOT_DIR/.env" ]]; then
   source "$ROOT_DIR/.env"
   set +a
 fi
-PORT="${PROXY_PORT:-4010}"
-TOKEN="${LAW_PROXY_TOKEN:-${DSH_PROXY_TOKEN:-${PROXY_TOKEN:-}}}"
-echo "== proxy health =="
-curl -fsS "http://127.0.0.1:${PORT}/healthz"
-echo
-echo "== models =="
-curl -fsS -H "Authorization: Bearer ${TOKEN}" "http://127.0.0.1:${PORT}/v1/models"
+echo "== Harness =="
+curl -fsS "http://127.0.0.1:${HARNESS_PORT:-3080}/" >/dev/null
+echo "ok: http://127.0.0.1:${HARNESS_PORT:-3080}"
+echo "== Local DS4F models =="
+curl -fsS "http://127.0.0.1:8000/v1/models"
 echo

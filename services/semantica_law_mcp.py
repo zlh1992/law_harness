@@ -38,7 +38,7 @@ PROVENANCE_PATH = Path(
     os.environ.get("SEMANTICA_PROVENANCE_PATH", ROOT / ".data" / "semantica" / "provenance.sqlite")
 )
 TRACE_PATH = Path(os.environ.get("SEMANTICA_TRACE_PATH", ROOT / ".data" / "semantica" / "legal-traces.json"))
-MODEL_ID = os.environ.get("LAW_MODEL_ID", "gpt-5.6-sol")
+MODEL_ID = os.environ.get("LAW_MODEL_ID", "deepseek-v4-flash")
 
 
 def now() -> str:

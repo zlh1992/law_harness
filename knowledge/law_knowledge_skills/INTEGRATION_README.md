@@ -6,8 +6,8 @@
 - `cangjie_skills/`：可蒸馏为 pipeline 的可执行技能草案（含 `manifest.md`）
 
 目录内文件来自本机历史产物：
-- `/Users/zlh1992_home/Documents/Codex/2026-08-16/new-chat/outputs/llm_wiki_知识库`
-- `/Users/zlh1992_home/Documents/Codex/2026-08-16/new-chat/outputs/cangjie_skills`
+- `knowledge/law_knowledge_skills/llm_wiki_知识库`
+- `knowledge/law_knowledge_skills/cangjie_skills`
 
 建议下一步：
 1. 先导入 `llm_wiki_知识库/README.md` 与 `sources_index.md` 到你的知识检索层。

@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Public tunnel credentials are disabled together with all public serving paths.
+echo "Cloudflare tunnel support is disabled in this local-only checkout." >&2
+exit 2
+
+: <<'CLOUDFLARE_TOKEN_SUPPORT_DISABLED'
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ -f "$ROOT_DIR/.env" ]]; then
   set -a
@@ -24,3 +30,4 @@ printf '%s' "$TOKEN" > "$TOKEN_FILE"
 chmod 600 "$TOKEN_FILE"
 unset TOKEN
 echo "Saved tunnel token to $TOKEN_FILE (mode 600)."
+CLOUDFLARE_TOKEN_SUPPORT_DISABLED

@@ -161,7 +161,7 @@
           SEMANTICA_GRAPH_PATH: !!js process.env.LAW_SEMANTICA_GRAPH_PATH
           SEMANTICA_PROVENANCE_PATH: !!js process.env.LAW_SEMANTICA_PROVENANCE_PATH
           SEMANTICA_TRACE_PATH: !!js process.env.LAW_SEMANTICA_TRACE_PATH
-          LAW_MODEL_ID: !!js process.env.CODEX_MODEL
+          LAW_MODEL_ID: !!js process.env.LAW_MODEL_ID
         toolCallTimeoutMs: 30000
         failOnStartupError: true
         reconnect:

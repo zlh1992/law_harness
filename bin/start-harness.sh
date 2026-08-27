@@ -21,8 +21,16 @@ if [[ -f "$ROOT_DIR/.env.research" ]]; then
   set +a
 fi
 
+if ! command -v node >/dev/null 2>&1; then
+  NODE_BIN="${MEMORY_NODE_BIN:-$ROOT_DIR/.tools/node/bin/node}"
+  [[ -x "$NODE_BIN" ]] || { echo "需要 Node.js >=20。" >&2; exit 2; }
+  export PATH="$(dirname "$NODE_BIN"):$PATH"
+fi
+
 export DSH_HOME="${DSH_HOME:-$ROOT_DIR/.dsh-home}"
-export DSH_PROXY_TOKEN="${LAW_PROXY_TOKEN:-${DSH_PROXY_TOKEN:-${PROXY_TOKEN:-}}}"
+export DS4_API_KEY="${DS4_API_KEY:-local}"
+export DS4_MODEL_ID="deepseek-v4-flash"
+export LAW_MODEL_ID="$DS4_MODEL_ID"
 export LAW_AGENT_PRESETS_DIR="$ROOT_DIR/dsh/presets"
 export LAW_MEMORY_PYTHON="$ROOT_DIR/.venv/bin/python"
 export LAW_MEMORY_MCP_ENTRY="$ROOT_DIR/services/local_memory_mcp.py"
@@ -41,6 +49,10 @@ export LAW_FREE_SEARCH_READER_CACHE_PATH="$ROOT_DIR/.data/free-search/reader"
 export LAW_RESEARCH_PYTHON="$LAW_FREE_SEARCH_PYTHON"
 export LAW_RESEARCH_MCP_ENTRY="$ROOT_DIR/services/internet_research_mcp.py"
 export LAW_RESEARCH_AUDIT_PATH="$ROOT_DIR/.data/research/search-audit.jsonl"
+# Cordis MCP env values must be strings; unset paid-provider keys stay optional.
+export TAVILY_API_KEY="${TAVILY_API_KEY:-}"
+export EXA_API_KEY="${EXA_API_KEY:-}"
+export SERPAPI_API_KEY="${SERPAPI_API_KEY:-}"
 export LAW_AGENT_REACH_ROOT="$ROOT_DIR/.tools/upstreams/agent-reach"
 export LAW_AGENT_REACH_PYTHON="$LAW_AGENT_REACH_ROOT/.venv/bin/python"
 export LAW_AGENT_REACH_MCP_ENTRY="$ROOT_DIR/services/agent_reach_mcp.py"
@@ -53,11 +65,12 @@ export LAW_SEMANTICA_PROVENANCE_PATH="$ROOT_DIR/.data/semantica/provenance.sqlit
 export LAW_SEMANTICA_TRACE_PATH="$ROOT_DIR/.data/semantica/legal-traces.json"
 export DSH_PERMISSION_MODE="${DSH_PERMISSION_MODE:-read-only}"
 export DSH_TELEMETRY_MODE="${DSH_TELEMETRY_MODE:-DISABLED}"
-export HARNESS_HOST="${HARNESS_HOST:-127.0.0.1}"
+# Local-only deployment: do not allow .env to expose the UI on a LAN/WAN interface.
+export HARNESS_HOST="127.0.0.1"
 export HARNESS_PORT="${HARNESS_PORT:-3080}"
 export DSH_VERSION="${DSH_VERSION:-0.1.0-rc.7}"
-if [[ -z "$DSH_PROXY_TOKEN" || "$DSH_PROXY_TOKEN" == "请替换为随机高强度口令" ]]; then
-  echo "请先在 $ROOT_DIR/.env 设置 LAW_PROXY_TOKEN。" >&2
+if ! curl -fsS --max-time 5 "http://127.0.0.1:8000/v1/models" | rg -q '"id":"deepseek-v4-flash"'; then
+  echo "本地 DS4F 尚未就绪；请确认 http://127.0.0.1:8000/v1/models 可访问。" >&2
   exit 2
 fi
 if [[ ! -x "$LAW_SEMANTICA_PYTHON" || ! -x "$LAW_MEMORY_PYTHON" || ! -f "$LAW_MEMORY_MCP_ENTRY" || ! -f "$LAW_WIKI_MCP_ENTRY" || ! -f "$LAW_RESEARCH_MCP_ENTRY" || ! -f "$LAW_SESSION_FILE_EXTRACTOR" || ! -d "$LAW_WIKI_ROOT" ]]; then
@@ -112,7 +125,7 @@ ensure_profile_plugin_link "dsh-law-wiki-graph" "$ROOT_DIR/plugins/law-wiki-grap
 
 cp "$ROOT_DIR/config/dsh-settings.yaml" "$DSH_HOME/settings.yaml"
 cp "$ROOT_DIR/config/dsh-law-cordis.patch.yml" "$DSH_HOME/cordis.patch.yml"
-printf 'DSH_PROXY_TOKEN: %s\n' "$DSH_PROXY_TOKEN" > "$DSH_HOME/.credentials.yaml"
+printf 'DS4_API_KEY: %s\n' "$DS4_API_KEY" > "$DSH_HOME/.credentials.yaml"
 chmod 600 "$DSH_HOME/.credentials.yaml"
 
 cd "$WORKSPACE_DIR"

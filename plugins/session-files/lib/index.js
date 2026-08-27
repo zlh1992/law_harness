@@ -16,6 +16,7 @@ export const inject = ["webServer", "sessions", "tools", "systemPrompt"];
 
 const LIST_ROUTE = "/api/session-files";
 const LOCAL_REFERENCE_ROUTE = "/api/session-files/local-reference";
+const PICK_LOCAL_FILE_ROUTE = "/api/session-files/pick-local-file";
 const MAX_LOCAL_REQUEST_BYTES = 32 * 1024;
 const DEFAULT_READ_LINES = 300;
 const MAX_READ_LINES = 1_000;
@@ -86,6 +87,32 @@ export async function extractDocument(extractorPython, extractorEntry, filePath,
   return result;
 }
 
+export async function pickLocalFile(signal, internals = {}) {
+  const platform = internals.platform || process.platform;
+  const run = internals.run || ((command, args) => execFileAsync(command, args, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024,
+    signal
+  }));
+  if (platform !== "darwin") {
+    throw Object.assign(new Error(`Local file picker is unsupported on ${platform}`), {
+      code: "LOCAL_FILE_PICKER_UNSUPPORTED",
+      status: 501
+    });
+  }
+  try {
+    const { stdout } = await run("/usr/bin/osascript", [
+      "-e", "set selectedFile to choose file with prompt \"选择要添加到当前会话的文件\"",
+      "-e", "POSIX path of selectedFile"
+    ]);
+    return String(stdout || "").replace(/[\r\n]+$/, "") || null;
+  } catch (error) {
+    const stderr = typeof error?.stderr === "string" ? error.stderr : "";
+    if (!signal?.aborted && error?.code === 1 && /(?:User canceled|-128)/i.test(stderr)) return null;
+    throw error;
+  }
+}
+
 function applyRoutes(ctx, root) {
   ctx.effect(() => ctx.webServer.register({
     kind: "exact",
@@ -130,6 +157,35 @@ function applyRoutes(ctx, root) {
       }
     }
   }), "session-files: register loopback local path");
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: "exact",
+    path: PICK_LOCAL_FILE_ROUTE,
+    async handler(req, res) {
+      if (req.method !== "POST") {
+        res.setHeader("allow", "POST");
+        return json(res, 405, { error: "method_not_allowed" });
+      }
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      req.once("aborted", abort);
+      res.once("close", () => {
+        if (!res.writableEnded) abort();
+      });
+      try {
+        const body = await readJson(req);
+        const sessionId = requireSession(ctx, body?.sessionId || "");
+        const selectedPath = await pickLocalFile(controller.signal);
+        if (!selectedPath) return json(res, 200, { ok: true, canceled: true });
+        const file = await registerLocalReference(root, sessionId, selectedPath);
+        return json(res, 201, { ok: true, canceled: false, file });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        ctx.logger.warn(`session-files local picker: ${error instanceof Error ? error.message : String(error)}`);
+        return json(res, Number(error?.status) || 500, { error: error?.code || "local_file_picker_failed", message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }), "session-files: pick and register a local file");
 }
 
 function applyTools(ctx, root, extractorPython, extractorEntry) {

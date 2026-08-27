@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { extractDocument, windowLines } from "../lib/index.js";
+import { extractDocument, pickLocalFile, windowLines } from "../lib/index.js";
 import {
   listSessionFiles,
   registerLocalReference,
@@ -31,6 +31,29 @@ test("local references keep the original real path and remain session-scoped", a
   const resolved = await resolveSessionFile(root, "session-local", recorded.id);
   assert.equal(resolved.realPath, await realpath(source));
   await assert.rejects(() => resolveSessionFile(root, "session-other", recorded.id), /not found/i);
+});
+
+test("macOS local picker returns the selected POSIX path and treats cancel as empty", async () => {
+  const signal = new AbortController().signal;
+  const calls = [];
+  const selected = await pickLocalFile(signal, {
+    platform: "darwin",
+    async run(command, args) {
+      calls.push({ command, args });
+      return { stdout: "/Users/example/合同.pdf\n" };
+    }
+  });
+  assert.equal(selected, "/Users/example/合同.pdf");
+  assert.equal(calls[0].command, "/usr/bin/osascript");
+  assert.match(calls[0].args.join(" "), /choose file/);
+
+  const canceled = await pickLocalFile(signal, {
+    platform: "darwin",
+    async run() {
+      throw Object.assign(new Error("canceled"), { code: 1, stderr: "execution error: User canceled. (-128)" });
+    }
+  });
+  assert.equal(canceled, null);
 });
 
 test("public uploads are copied below their session workspace without overwrite", async (t) => {

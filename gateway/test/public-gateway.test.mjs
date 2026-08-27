@@ -33,16 +33,16 @@ test("public model catalog is filtered and selection is allowlisted", async (t) 
       ? {
           ok: true,
           value: {
-            current: { provider: "openai", model: "gpt-5.6-sol", reasoningEffort: "medium" },
+            current: { provider: "deepseek", model: "deepseek-v4-flash" },
             routable: true,
             groups: [
-              { id: "deepseek-official", name: "DeepSeek", models: [{ id: "deepseek-v4-flash", name: "V4" }] },
+              { id: "cloud-model", name: "Cloud", models: [{ id: "remote-model", name: "Remote" }] },
               {
-                id: "openai",
-                name: "OpenAI",
+                id: "deepseek",
+                name: "Local DeepSeek DS4F",
                 models: [
-                  { id: "gpt-5.3-codex-spark", name: "Spark" },
-                  { id: "gpt-5.6-sol", name: "Sol", reasoning: { efforts: [{ id: "medium", name: "Medium" }] } },
+                  { id: "deepseek-v4-pro", name: "Compatibility alias" },
+                  { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
                 ],
               },
             ],
@@ -66,9 +66,9 @@ test("public model catalog is filtered and selection is allowlisted", async (t) 
       sessionSecret: "test-secret",
       publicWorkspaceId: "workspace-1",
       lawAgentPreset: "law-assistant",
-      publicModelProvider: "openai",
-      publicModelId: "gpt-5.6-sol",
-      publicModelReasoningEfforts: ["medium"],
+      publicModelProvider: "deepseek",
+      publicModelId: "deepseek-v4-flash",
+      publicModelReasoningEfforts: ["high", "max"],
       sessionTtlSeconds: 3600,
       cookieSecure: false,
       maxLoginBodyBytes: 8192,
@@ -95,8 +95,8 @@ test("public model catalog is filtered and selection is allowlisted", async (t) 
     headers,
     body: JSON.stringify(envelope("session.models", { sessionId: "session-1" })),
   }).then((response) => response.json());
-  assert.deepEqual(models.result.value.groups.map((group) => group.id), ["openai"]);
-  assert.deepEqual(models.result.value.groups[0].models.map((model) => model.id), ["gpt-5.6-sol"]);
+  assert.deepEqual(models.result.value.groups.map((group) => group.id), ["deepseek"]);
+  assert.deepEqual(models.result.value.groups[0].models.map((model) => model.id), ["deepseek-v4-flash"]);
   assert.deepEqual(models.result.value.failures, []);
 
   const allowed = await fetch(`${base}/api/session.selectModel`, {
@@ -104,9 +104,9 @@ test("public model catalog is filtered and selection is allowlisted", async (t) 
     headers,
     body: JSON.stringify(envelope("session.selectModel", {
       sessionId: "session-1",
-      provider: "openai",
-      model: "gpt-5.6-sol",
-      reasoningEffort: "medium",
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+      reasoningEffort: "high",
     })),
   });
   assert.equal(allowed.status, 200);
@@ -116,8 +116,8 @@ test("public model catalog is filtered and selection is allowlisted", async (t) 
     headers,
     body: JSON.stringify(envelope("session.selectModel", {
       sessionId: "session-1",
-      provider: "deepseek-official",
-      model: "deepseek-v4-flash",
+      provider: "cloud-model",
+      model: "remote-model",
     })),
   });
   assert.equal(denied.status, 403);
@@ -146,9 +146,9 @@ test("authenticated public uploads land in the active conversation workspace", a
     sessionSecret: "test-secret",
     publicWorkspaceId: "workspace-1",
     lawAgentPreset: "law-assistant",
-    publicModelProvider: "openai",
-    publicModelId: "gpt-5.6-sol",
-    publicModelReasoningEfforts: ["medium"],
+    publicModelProvider: "deepseek",
+    publicModelId: "deepseek-v4-flash",
+    publicModelReasoningEfforts: ["high", "max"],
     sessionTtlSeconds: 3600,
     cookieSecure: false,
     maxLoginBodyBytes: 8192,
