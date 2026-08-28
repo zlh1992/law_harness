@@ -42,6 +42,36 @@ class LegalOkfBundleTests(unittest.TestCase):
             report = LegalOkfBundle(root).validate()
             self.assertTrue(any(issue["code"] == "missing_type" and issue["severity"] == "error" for issue in report["issues"]))
 
+    def test_crud_is_atomic_validated_and_revision_guarded(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            write_bundle(root)
+            bundle = LegalOkfBundle(root)
+            with self.assertRaisesRegex(ValueError, "reserved"):
+                bundle.create_concept("index", metadata={"type": "Schema"}, body="# invalid")
+            created = bundle.create_concept(
+                "playbooks/new-topic",
+                metadata={"title": "New topic", "type": "Legal Playbook", "description": "A test page", "status": "draft"},
+                body="# New topic\n\nInitial guidance.",
+            )
+            self.assertEqual(bundle.get("playbooks/new-topic")["title"], "New topic")
+            self.assertEqual(bundle.get("playbooks/new-topic")["revision"], created["revision"])
+            with self.assertRaisesRegex(ValueError, "revision"):
+                bundle.update_concept("playbooks/new-topic", body="# stale", expected_revision="0" * 64)
+            updated = bundle.update_concept(
+                "playbooks/new-topic",
+                metadata={"description": "Updated guidance"},
+                body="# New topic\n\nUpdated guidance.",
+                expected_revision=created["revision"],
+            )
+            self.assertEqual(bundle.get("playbooks/new-topic")["description"], "Updated guidance")
+            with self.assertRaisesRegex(ValueError, "status"):
+                bundle.update_concept("playbooks/new-topic", metadata={"status": "invalid"})
+            self.assertEqual(bundle.get("playbooks/new-topic")["description"], "Updated guidance")
+            self.assertTrue(bundle.delete_concept("playbooks/new-topic", expected_revision=updated["revision"])["deleted"])
+            with self.assertRaises(ValueError):
+                bundle.get("playbooks/new-topic")
+
 
 class LawWikiMcpTests(unittest.TestCase):
     def test_native_and_legacy_operations_use_the_same_read_only_bundle(self):
@@ -54,6 +84,9 @@ class LawWikiMcpTests(unittest.TestCase):
             resource = wiki.read_resource("lawwiki://legal-okf/concepts/playbooks/privacy")
             self.assertIn("type: Legal Playbook", resource["contents"][0]["text"])
             self.assertTrue({"search", "read_page", "catalog", "okf_validate", "okf_trace_context"}.issubset({tool["name"] for tool in wiki.TOOLS}))
+
+    def test_crud_operations_are_exposed_with_explicit_names(self):
+        self.assertTrue({"okf_create_concept", "okf_update_concept", "okf_delete_concept"}.issubset(wiki.OPERATIONS))
 
 
 if __name__ == "__main__":

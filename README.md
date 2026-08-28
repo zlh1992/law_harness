@@ -8,16 +8,16 @@
   → http://127.0.0.1:8000/v1/chat/completions
   → deepseek-v4-flash（Apple Metal）
 
-Harness 同时装配：.dsh/skills、只读法务 LLM Wiki MCP、本地 SQLite Memory MCP、Semantica 溯源 MCP、会话文件插件，以及本机运行的混合互联网检索、Free Search 正文阅读和 Agent Reach 公共平台适配器
+Harness 同时装配：.dsh/skills、受控法务 LLM Wiki MCP、本地 SQLite Memory MCP、Semantica 溯源 MCP、会话文件插件，以及本机运行的混合互联网检索、Free Search 正文阅读和 Agent Reach 公共平台适配器
 ```
 
 ## 已集成内容
 
-- `knowledge/legal_okf/`：运行时使用的 Google OKF v0.2 法务知识包；含 14 个带稳定概念 ID、来源、信任信号与法域边界的只读概念。`knowledge/law_knowledge_skills/` 保留为原始迁移档案与七份苍颉技能草案。
+- `knowledge/legal_okf/`：运行时使用的 Google OKF v0.2 法务知识包；含 14 个带稳定概念 ID、来源、信任信号与法域边界的概念，支持验证门控的受控维护。`knowledge/law_knowledge_skills/` 保留为原始迁移档案与七份苍颉技能草案。
 - `.dsh/skills/`：将七份草案变为 Harness 可发现的项目级技能，另有 `law-wiki-source-index` 入口技能（共 8 个）。
 - `dsh/presets/law-assistant/`：法务中文预设；要求风险分流、来源核验、律师复核提示，并仅在用户明确要求时使用记忆。
 - `services/local_memory_mcp.py`：内置本地 SQLite MCP（记住、回忆、列出、遗忘），数据保存在 `.data/memory/memory.db`，不上传和不自动记录对话。
-- `services/law_wiki_mcp.py`：只读 OKF MCP。保留 `search` / `read_page` / `catalog` 兼容接口，并提供 `okf_search`、概念读取、校验、资源和审计上下文；不会读取知识根目录之外的文件。
+- `services/law_wiki_mcp.py`：受控 OKF MCP。保留 `search` / `read_page` / `catalog` 兼容接口，并提供 `okf_search`、概念读取、校验、资源、审计上下文及事务化概念 CRUD；不会读取知识根目录之外的文件。
 - `plugins/law-wiki-graph/`：会话内的 OKF 概念图。支持检索、类型/信任信号筛选、来源关系、会话读取高亮、局部聚焦与节点详情，不写入知识库或会话历史。
 - `services/semantica_law_mcp.py`：将回答、关键事实、来源与决策写入 Semantica 图和 PROV 校验记录；追踪数据在 `.data/semantica/`。法务预设要求实质性答复先调用该工具并返回 trace ID。
 - `plugins/session-files/`：DeepSeek Harness Host/Client 双端插件。本地界面只登记本机绝对路径；公网界面把文档复制到 `workspaces/session-files/<sessionId>/`。Agent 只能用 `session_file_list` / `session_file_read` 读取当前会话已登记文件，不能浏览任意 Mac 目录。

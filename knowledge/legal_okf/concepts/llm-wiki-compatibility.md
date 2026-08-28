@@ -11,8 +11,8 @@ generated:
 
 # LLM Wiki 兼容层与原生 OKF 边界
 
-MCP 的 `search`、`read_page` 和 `catalog` 被保留，以保证既有技能仍能工作。它们全部只读，并由同一个 OKF 解析器提供结果。
+MCP 的 `search`、`read_page` 和 `catalog` 被保留，以保证既有技能仍能工作。它们全部只读，并由同一个 OKF 解析器提供结果；知识维护使用显式命名的 CRUD 工具。
 
-新调用方应优先使用 `okf_search`、`okf_read_concept`、`okf_list_concepts`、`okf_validate`、`okf_graph` 和 `okf_trace_context`。原生接口以概念 ID、元数据、链接、来源、信任信号和分页内容作为稳定契约；旧接口仅返回面向过渡期的路径视图。
+新调用方应优先使用 `okf_search`、`okf_read_concept`、`okf_list_concepts`、`okf_validate`、`okf_graph` 和 `okf_trace_context`；维护流程使用 `okf_create_concept`、`okf_update_concept`、`okf_delete_concept`。原生接口以概念 ID、元数据、链接、来源、信任信号和分页内容作为稳定契约；旧接口仅返回面向过渡期的路径视图。
 
 可视化也基于这些概念 ID，而不是宿主机绝对路径。详见 [法务 OKF 模式与扩展](../schema.md)。

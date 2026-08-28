@@ -58,6 +58,8 @@ DS4_PORT_VALUE="${DS4_PORT:-8000}"
 DSH_HOME_DIR="${DSH_HOME:-$ROOT_DIR/.dsh-home}"
 DS4_START_TIMEOUT="${DS4_START_TIMEOUT_SECONDS:-600}"
 HARNESS_START_TIMEOUT="${HARNESS_START_TIMEOUT_SECONDS:-120}"
+HARNESS_STOP_TIMEOUT="${HARNESS_STOP_TIMEOUT_SECONDS:-120}"
+DS4_STOP_TIMEOUT="${DS4_STOP_TIMEOUT_SECONDS:-60}"
 RUN_DIR="$ROOT_DIR/.data/run"
 LOG_DIR="$ROOT_DIR/.logs"
 DS4_PID_FILE="$RUN_DIR/ds4.pid"
@@ -72,6 +74,8 @@ HARNESS_LOG="$LOG_DIR/harness.log"
 [[ "$FOREGROUND" =~ ^[01]$ ]] || { echo "RESTART_FOREGROUND must be 0 or 1." >&2; exit 2; }
 [[ "$DS4_START_TIMEOUT" =~ ^[0-9]+$ ]] || { echo "DS4_START_TIMEOUT_SECONDS must be an integer." >&2; exit 2; }
 [[ "$HARNESS_START_TIMEOUT" =~ ^[0-9]+$ ]] || { echo "HARNESS_START_TIMEOUT_SECONDS must be an integer." >&2; exit 2; }
+[[ "$HARNESS_STOP_TIMEOUT" =~ ^[0-9]+$ ]] || { echo "HARNESS_STOP_TIMEOUT_SECONDS must be an integer." >&2; exit 2; }
+[[ "$DS4_STOP_TIMEOUT" =~ ^[0-9]+$ ]] || { echo "DS4_STOP_TIMEOUT_SECONDS must be an integer." >&2; exit 2; }
 
 for command_name in curl lsof nohup ps; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "Missing command: $command_name" >&2; exit 2; }
@@ -90,14 +94,15 @@ process_cwd() {
 stop_pid() {
   local pid="$1"
   local label="$2"
+  local timeout="${3:-20}"
   local elapsed=0
 
   kill -0 "$pid" 2>/dev/null || return 0
   echo "Stopping $label (PID $pid)..."
   kill -TERM "$pid" 2>/dev/null || return 0
   while kill -0 "$pid" 2>/dev/null; do
-    if (( elapsed >= 20 )); then
-      echo "$label did not stop after 20 seconds; sending SIGKILL." >&2
+    if (( elapsed >= timeout )); then
+      echo "$label did not stop after $timeout seconds; sending SIGKILL." >&2
       kill -KILL "$pid" 2>/dev/null || true
       break
     fi
@@ -118,12 +123,12 @@ stop_recorded_pid() {
   case "$kind" in
     harness)
       if [[ "$command_line" == *"dsh web"* ]] && [[ "$(process_cwd "$pid")" == "$ROOT_DIR" ]]; then
-        stop_pid "$pid" "DeepSeek Harness"
+        stop_pid "$pid" "DeepSeek Harness" "$HARNESS_STOP_TIMEOUT"
       fi
       ;;
     ds4)
       if [[ "$command_line" == *"ds4-server"* ]]; then
-        stop_pid "$pid" "DS4F"
+        stop_pid "$pid" "DS4F" "$DS4_STOP_TIMEOUT"
       fi
       ;;
   esac
@@ -136,7 +141,7 @@ stop_project_harnesses() {
     [[ "$command_line" == *"dsh web"* ]] || continue
     cwd="$(process_cwd "$pid")"
     if [[ "$cwd" == "$ROOT_DIR" || "$command_line" == *"$ROOT_DIR/node_modules/.bin/dsh"* ]]; then
-      stop_pid "$pid" "DeepSeek Harness"
+      stop_pid "$pid" "DeepSeek Harness" "$HARNESS_STOP_TIMEOUT"
     fi
   done < <(ps -ax -ww -o pid=,command=)
 }
@@ -149,7 +154,7 @@ stop_ds4_listener() {
       echo "Refusing to stop PID $pid on port $DS4_PORT_VALUE; it is not ds4-server." >&2
       exit 2
     fi
-    stop_pid "$pid" "DS4F"
+    stop_pid "$pid" "DS4F" "$DS4_STOP_TIMEOUT"
   done
 }
 
@@ -239,8 +244,8 @@ fi
 if [[ "$FOREGROUND" == "1" ]]; then
   cleanup_children() {
     trap - EXIT INT TERM
-    stop_pid "$HARNESS_PID" "DeepSeek Harness"
-    stop_pid "$DS4_PID" "DS4F"
+    stop_pid "$HARNESS_PID" "DeepSeek Harness" "$HARNESS_STOP_TIMEOUT"
+    stop_pid "$DS4_PID" "DS4F" "$DS4_STOP_TIMEOUT"
   }
   trap cleanup_children EXIT INT TERM
   echo "Supervisor active; press Ctrl-C to stop Harness and DS4F."

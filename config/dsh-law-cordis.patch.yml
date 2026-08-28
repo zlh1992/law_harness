@@ -8,6 +8,35 @@
     roots: []
     includeUserRoot: true
 
+# Keep the transcript backend explicit and rooted under the stable DSH_HOME
+# path supplied by the launcher. The JSONL backend fsyncs append batches and
+# repairs incomplete tails on restart; a short batch window reduces the amount
+# of acknowledged history that can be pending during an abrupt shutdown.
+- id: session-persistence-jsonl
+  config:
+    root: !!js process.env.LAW_SESSION_HISTORY_ROOT
+    compression: zstd
+    packChunks: true
+    preparedSessionCacheSize: 10
+    writeBatchMaxDelayMs: 100
+
+# Local single-user deployments default to the full approval preset. The
+# preset remains explicit in settings so a restart cannot silently fall back to
+# the base composition's constrained workspace-write/ask pair.
+- id: permission
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
+    defaultPreset: !!js process.env.DSH_PERMISSION_MODE
+
 # `insert` adds new top-level plugin rows; id-targeted entries above only
 # override components already supplied by the Web profile.
 - insert:

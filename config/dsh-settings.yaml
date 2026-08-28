@@ -8,6 +8,7 @@ llm-pi-ai:
       api: openai-completions
       baseURL: http://127.0.0.1:8000/v1
       apiKeyEnv: DS4_API_KEY
+      reasoning: high
       streamIdleTimeoutMs: 120000
       compat:
         thinkingFormat: openai

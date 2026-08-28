@@ -1,8 +1,8 @@
-"""Small, dependency-free OKF v0.2 reader for the local legal knowledge bundle.
+"""Small, dependency-free OKF v0.2 reader/writer for the local legal knowledge bundle.
 
-The module deliberately only reads a bundle.  It is shared by the MCP facade
-and its tests, so validation, search, resource rendering, and graph data use
-the same interpretation of Markdown/YAML rather than drifting independently.
+The module is shared by the MCP facade and its tests, so validation, search,
+resource rendering, graph data, and transactional mutations use the same
+interpretation of Markdown/YAML rather than drifting independently.
 
 The frontmatter reader implements the portable subset used by this repository:
 maps, lists, scalars, and JSON-style inline lists/maps.  It also returns a
@@ -12,11 +12,15 @@ instead of silently discarding compliance metadata.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import posixpath
 import re
-from datetime import UTC, datetime
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from threading import RLock
 from typing import Any, Iterable
 
 
@@ -32,6 +36,52 @@ HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 
 class OkfError(ValueError):
     """Raised for a request that cannot be safely served from the bundle."""
+
+
+_MUTATION_LOCK = RLock()
+_CONCEPT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,240}$")
+_METADATA_KEY = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _validate_concept_id(value: Any) -> str:
+    concept_id = str(value or "").strip().replace("\\", "/").strip("/")
+    if not _CONCEPT_ID.fullmatch(concept_id) or concept_id.casefold().endswith(".md"):
+        raise OkfError("concept_id must be a relative path-like id without .md")
+    parts = concept_id.split("/")
+    if any(part in {"", ".", ".."} for part in parts) or f"{parts[-1]}.md".casefold() in RESERVED_FILENAMES:
+        raise OkfError("concept_id contains an unsafe or reserved path")
+    return concept_id
+
+
+def _json_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (str, int, float)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    raise OkfError("metadata must contain only JSON-compatible values")
+
+
+def _render_markdown(metadata: dict[str, Any], body: str) -> str:
+    if not isinstance(metadata, dict):
+        raise OkfError("metadata must be an object")
+    lines = ["---"]
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not _METADATA_KEY.fullmatch(key):
+            raise OkfError("metadata keys must be simple YAML names")
+        lines.append(f"{key}: {_json_scalar(value)}")
+    lines.extend(["---", "", body.rstrip("\n"), ""])
+    rendered = "\n".join(lines)
+    if len(rendered) > MAX_MARKDOWN_CHARS:
+        raise OkfError(f"document exceeds {MAX_MARKDOWN_CHARS} characters")
+    return rendered
+
+
+def _revision(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _strip_comment(line: str) -> str:
@@ -274,7 +324,7 @@ def _parse_instant(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
 
 
 def _trust(metadata: dict[str, Any]) -> str:
@@ -299,7 +349,7 @@ def _authority(metadata: dict[str, Any]) -> dict[str, Any]:
 
 
 class LegalOkfBundle:
-    """Read-only, in-memory view of one OKF legal knowledge bundle."""
+    """Validated in-memory view of one OKF legal knowledge bundle."""
 
     def __init__(self, root: Path | str):
         self.root = Path(root).resolve()
@@ -316,6 +366,11 @@ class LegalOkfBundle:
         if len(paths) > MAX_DOCUMENTS:
             raise OkfError(f"bundle exceeds {MAX_DOCUMENTS} Markdown documents")
         for file_path in paths:
+            current_path = file_path
+            while current_path != self.root:
+                if current_path.is_symlink():
+                    raise OkfError(f"bundle contains a symlinked Markdown path: {_relative_path(self.root, file_path)}")
+                current_path = current_path.parent
             relative_path = _relative_path(self.root, file_path)
             raw = file_path.read_text(encoding="utf-8", errors="replace")
             if len(raw) > MAX_MARKDOWN_CHARS:
@@ -362,6 +417,149 @@ class LegalOkfBundle:
         for concept in self.concepts.values():
             concept["backlinks"] = sorted(other["id"] for other in self.concepts.values() if concept["id"] in other["links"])
 
+    def _document_path(self, concept_id: str) -> Path:
+        concept_id = _validate_concept_id(concept_id)
+        root = self.root.resolve()
+        target = root.joinpath(*concept_id.split("/"))
+        target = target.parent / f"{target.name}.md"
+        if root not in target.parents:
+            raise OkfError("concept_id escapes the OKF bundle")
+        current = target
+        while current != root:
+            if current.is_symlink():
+                raise OkfError("refusing to access a symlinked OKF path")
+            current = current.parent
+        return target
+
+    def _write_atomic(self, target: Path, rendered: str) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists() and target.is_symlink():
+            raise OkfError("refusing to mutate a symlinked OKF document")
+        root = self.root.resolve()
+        parent = target.parent.resolve()
+        if parent != root and root not in parent.parents:
+            raise OkfError("document parent escapes the OKF bundle")
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(rendered)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+            directory_fd = os.open(parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def _validated_mutation(self, target: Path, rendered: str, previous: str | None) -> dict[str, Any]:
+        with _MUTATION_LOCK:
+            self._write_atomic(target, rendered)
+            try:
+                refreshed = LegalOkfBundle(self.root)
+                report = refreshed.validate()
+                if report["summary"]["errors"]:
+                    raise OkfError(f"mutation failed OKF validation: {report['summary']}")
+            except Exception:
+                if previous is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    self._write_atomic(target, previous)
+                raise
+            self.documents = refreshed.documents
+            self.concepts = refreshed.concepts
+            self.bundle_index = refreshed.bundle_index
+            self.bundle_log = refreshed.bundle_log
+            return {
+                "id": _concept_id(_relative_path(self.root, target)),
+                "path": _relative_path(self.root, target),
+                "revision": _revision(rendered),
+                "validation": report["summary"],
+            }
+
+    def create_concept(self, concept_id: str, *, metadata: dict[str, Any], body: str, overwrite: bool = False) -> dict[str, Any]:
+        with _MUTATION_LOCK:
+            target = self._document_path(concept_id)
+            if target.exists() and not overwrite:
+                raise OkfError("concept already exists; use update or set overwrite=true")
+            metadata = dict(metadata or {})
+            if not str(metadata.get("type") or "").strip():
+                raise OkfError("metadata.type is required")
+            if metadata.get("status") is not None and metadata["status"] not in VALID_STATUSES:
+                raise OkfError("metadata.status must be draft, stable, or deprecated")
+            if not isinstance(body, str) or not body.strip():
+                raise OkfError("body is required and cannot be empty")
+            previous = target.read_text(encoding="utf-8") if target.exists() else None
+            return self._validated_mutation(target, _render_markdown(metadata, body), previous)
+
+    def update_concept(
+        self,
+        concept_id: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+        body: str | None = None,
+        expected_revision: str | None = None,
+    ) -> dict[str, Any]:
+        with _MUTATION_LOCK:
+            target = self._document_path(concept_id)
+            if not target.is_file() or target.is_symlink():
+                raise OkfError("concept_id must identify an existing regular Markdown document")
+            previous = target.read_text(encoding="utf-8")
+            if expected_revision and not expected_revision.casefold() == _revision(previous):
+                raise OkfError("revision does not match the current concept; reload before updating")
+            current = LegalOkfBundle(self.root).documents.get(_relative_path(self.root, target))
+            if current is None or current["parse_error"]:
+                raise OkfError("cannot update a concept with invalid frontmatter")
+            next_metadata = dict(current["metadata"])
+            if metadata is not None:
+                if not isinstance(metadata, dict):
+                    raise OkfError("metadata must be an object")
+                next_metadata.update(metadata)
+            if not str(next_metadata.get("type") or "").strip():
+                raise OkfError("metadata.type is required")
+            if next_metadata.get("status") is not None and next_metadata["status"] not in VALID_STATUSES:
+                raise OkfError("metadata.status must be draft, stable, or deprecated")
+            next_body = current["body"] if body is None else body
+            if not isinstance(next_body, str) or not next_body.strip():
+                raise OkfError("body is required and cannot be empty")
+            return self._validated_mutation(target, _render_markdown(next_metadata, next_body), previous)
+
+    def delete_concept(self, concept_id: str, *, expected_revision: str | None = None, force: bool = False) -> dict[str, Any]:
+        with _MUTATION_LOCK:
+            target = self._document_path(concept_id)
+            relative_path = _relative_path(self.root, target)
+            current_bundle = LegalOkfBundle(self.root)
+            current = current_bundle.documents.get(relative_path)
+            if current is None or current["reserved"]:
+                raise OkfError("concept_id must identify an existing non-reserved concept")
+            previous = current["raw"]
+            if expected_revision and expected_revision.casefold() != _revision(previous):
+                raise OkfError("revision does not match the current concept; reload before deleting")
+            if current.get("backlinks") and not force:
+                raise OkfError("concept is referenced by other concepts; pass force=true to delete it")
+            target.unlink()
+            try:
+                directory_fd = os.open(target.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                refreshed = LegalOkfBundle(self.root)
+                report = refreshed.validate()
+                if report["summary"]["errors"]:
+                    raise OkfError(f"deletion failed OKF validation: {report['summary']}")
+            except Exception:
+                self._write_atomic(target, previous)
+                raise
+            self.documents = refreshed.documents
+            self.concepts = refreshed.concepts
+            self.bundle_index = refreshed.bundle_index
+            self.bundle_log = refreshed.bundle_log
+        return {"id": current["id"], "path": relative_path, "deleted": True, "validation": report["summary"]}
+
     def status(self) -> dict[str, Any]:
         report = self.validate()
         return {
@@ -370,7 +568,8 @@ class LegalOkfBundle:
             "documents": len(self.documents),
             "concepts": len(self.concepts),
             "validation": report["summary"],
-            "readonly": True,
+            "readonly": False,
+            "writable": True,
             "local_only": True,
         }
 
@@ -400,6 +599,7 @@ class LegalOkfBundle:
         return {
             "id": concept["id"],
             "path": concept["path"],
+            "revision": _revision(concept["raw"]),
             "title": concept["title"],
             "description": concept["description"],
             "type": concept["type"],

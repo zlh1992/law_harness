@@ -33,9 +33,11 @@ export DS4_MODEL_ID="deepseek-v4-flash"
 export LAW_MODEL_ID="$DS4_MODEL_ID"
 export LAW_AGENT_PRESETS_DIR="$ROOT_DIR/dsh/presets"
 export LAW_PROJECT_SKILLS_DIR="$ROOT_DIR/.dsh/skills"
+export LAW_PROJECT_SKILLS_FALLBACK_DIR="$DSH_HOME/skills"
 export LAW_MEMORY_PYTHON="$ROOT_DIR/.venv/bin/python"
 export LAW_MEMORY_MCP_ENTRY="$ROOT_DIR/services/local_memory_mcp.py"
 export LAW_MEMORY_DB="$ROOT_DIR/.data/memory/memory.db"
+export LAW_SESSION_HISTORY_ROOT="${LAW_SESSION_HISTORY_ROOT:-$DSH_HOME/sessions}"
 export LAW_SESSION_FILES_ROOT="${LAW_SESSION_FILES_ROOT:-$ROOT_DIR/workspaces/session-files}"
 export LAW_SESSION_FILE_PYTHON="${LAW_SESSION_FILE_PYTHON:-$ROOT_DIR/.venv/bin/python}"
 export LAW_SESSION_FILE_EXTRACTOR="${LAW_SESSION_FILE_EXTRACTOR:-$ROOT_DIR/services/session_file_extract.py}"
@@ -64,7 +66,7 @@ export LAW_SEMANTICA_SOURCE_PATH="$ROOT_DIR/vendor/semantica"
 export LAW_SEMANTICA_GRAPH_PATH="$ROOT_DIR/.data/semantica/context-graph.json"
 export LAW_SEMANTICA_PROVENANCE_PATH="$ROOT_DIR/.data/semantica/provenance.sqlite"
 export LAW_SEMANTICA_TRACE_PATH="$ROOT_DIR/.data/semantica/legal-traces.json"
-export DSH_PERMISSION_MODE="${DSH_PERMISSION_MODE:-read-only}"
+export DSH_PERMISSION_MODE="${DSH_PERMISSION_MODE:-danger-full-access}"
 export DSH_TELEMETRY_MODE="${DSH_TELEMETRY_MODE:-DISABLED}"
 # Local-only deployment: do not allow .env to expose the UI on a LAN/WAN interface.
 export HARNESS_HOST="127.0.0.1"
@@ -84,7 +86,15 @@ if [[ ! -x "$LAW_FREE_SEARCH_PYTHON" || ! -x "$LAW_AGENT_REACH_PYTHON" || ! -f "
   exit 2
 fi
 mkdir -p "$LAW_FREE_SEARCH_ROUTER_CACHE_PATH" "$LAW_FREE_SEARCH_READER_CACHE_PATH" "$(dirname "$LAW_RESEARCH_AUDIT_PATH")" "$(dirname "$LAW_AGENT_REACH_AUDIT_PATH")"
-mkdir -p "$DSH_HOME"
+if [[ ! -f "$LAW_PROJECT_SKILLS_DIR/law-wiki-source-index/SKILL.md" ]]; then
+  echo "缺少 law-wiki-source-index 技能：$LAW_PROJECT_SKILLS_DIR/law-wiki-source-index/SKILL.md" >&2
+  exit 2
+fi
+mkdir -p "$DSH_HOME" "$LAW_SESSION_HISTORY_ROOT" "$DSH_HOME/skills"
+# Keep a second, user-root copy of the reviewed skills. This protects startup
+# from a transient project-root discovery miss and lets the model continue to
+# load law-wiki-source-index after a watcher/catalog refresh.
+cp -R "$LAW_PROJECT_SKILLS_DIR/." "$DSH_HOME/skills/"
 PRESET_SOURCE="$ROOT_DIR/dsh/presets/law-assistant"
 PRESET_TARGET_ROOT="$DSH_HOME/.agent-presets"
 PRESET_TARGET="$PRESET_TARGET_ROOT/law-assistant"

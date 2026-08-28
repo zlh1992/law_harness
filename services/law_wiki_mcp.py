@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Read-only MCP facade for the local legal OKF bundle.
+"""MCP facade for the local legal OKF bundle.
 
-The legacy ``search``, ``read_page``, and ``catalog`` tools intentionally stay
-available while new callers use the ``okf_*`` contract. No tool mutates the
-bundle: curation and approval belong to a separate, reviewed admin workflow.
+The legacy ``search``, ``read_page``, and ``catalog`` tools stay available while
+new callers use the ``okf_*`` contract. Knowledge mutations are explicit,
+transactional, and validation-gated; callers should use them only from a
+reviewed administration workflow.
 """
 
 from __future__ import annotations
@@ -118,6 +119,42 @@ def okf_trace_context(args: dict[str, Any]) -> dict[str, Any]:
     return bundle().trace_context(str(args.get("concept_id") or args.get("id") or ""))
 
 
+MUTABLE_METADATA_FIELDS = ("title", "type", "description", "status", "tags", "sources", "generated", "verified", "stale_after", "law")
+
+
+def _mutation_metadata(args: dict[str, Any]) -> dict[str, Any]:
+    raw_metadata = args.get("metadata")
+    if raw_metadata is not None and not isinstance(raw_metadata, dict):
+        raise OkfError("metadata must be an object")
+    metadata = dict(raw_metadata or {})
+    for key in MUTABLE_METADATA_FIELDS:
+        if key in args:
+            metadata[key] = args[key]
+    return metadata
+
+
+def okf_create_concept(args: dict[str, Any]) -> dict[str, Any]:
+    concept_id = str(args.get("concept_id") or args.get("id") or "")
+    body = args.get("body", args.get("content"))
+    return bundle().create_concept(concept_id, metadata=_mutation_metadata(args), body=body, overwrite=bool(args.get("overwrite", False)))
+
+
+def okf_update_concept(args: dict[str, Any]) -> dict[str, Any]:
+    concept_id = str(args.get("concept_id") or args.get("id") or "")
+    body = args["body"] if "body" in args else args.get("content")
+    return bundle().update_concept(
+        concept_id,
+        metadata=_mutation_metadata(args) if any(key in args for key in ("metadata", *MUTABLE_METADATA_FIELDS)) else None,
+        body=body,
+        expected_revision=args.get("expected_revision"),
+    )
+
+
+def okf_delete_concept(args: dict[str, Any]) -> dict[str, Any]:
+    concept_id = str(args.get("concept_id") or args.get("id") or "")
+    return bundle().delete_concept(concept_id, expected_revision=args.get("expected_revision"), force=bool(args.get("force", False)))
+
+
 OPERATIONS = {
     "search": legacy_search,
     "read_page": legacy_read_page,
@@ -129,6 +166,9 @@ OPERATIONS = {
     "okf_graph": okf_graph,
     "okf_validate": okf_validate,
     "okf_trace_context": okf_trace_context,
+    "okf_create_concept": okf_create_concept,
+    "okf_update_concept": okf_update_concept,
+    "okf_delete_concept": okf_delete_concept,
 }
 
 
@@ -147,6 +187,27 @@ FILTER_PROPERTIES = {
     "jurisdiction": {"type": "string", "description": "law.jurisdictions 中的法域代码"},
 }
 
+MUTATION_PROPERTIES = {
+    "concept_id": {"type": "string", "description": "相对概念 ID，例如 playbooks/privacy"},
+    "metadata": {"type": "object", "additionalProperties": True},
+    "title": {"type": "string"},
+    "type": {"type": "string"},
+    "description": {"type": "string"},
+    "status": {"type": "string", "enum": ["draft", "stable", "deprecated"]},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "sources": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+    "generated": {"type": "object", "additionalProperties": True},
+    "verified": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+    "stale_after": {"type": "string"},
+    "law": {"type": "object", "additionalProperties": True},
+    "body": {"type": "string"},
+    "content": {"type": "string"},
+    "expected_revision": {"type": "string", "minLength": 64, "maxLength": 64},
+}
+
+CREATE_SCHEMA = _schema({**MUTATION_PROPERTIES, "overwrite": {"type": "boolean"}}, ["concept_id"])
+CREATE_SCHEMA["anyOf"] = [{"required": ["body"]}, {"required": ["content"]}]
+
 
 TOOLS = [
     {"name": "search", "description": "兼容旧版：检索本地法务 Wiki。新调用方优先使用 okf_search，并在回答前读取具体概念。", "inputSchema": _schema({"query": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])},
@@ -159,6 +220,9 @@ TOOLS = [
     {"name": "okf_graph", "description": "返回只读的 OKF 概念图（类别、标准链接和包内来源关系），不暴露绝对主机路径。", "inputSchema": _schema({})},
     {"name": "okf_validate", "description": "校验 OKF v0.2 最小契约、来源、链接、状态与法务包元数据；不写入任何文件。", "inputSchema": _schema({})},
     {"name": "okf_trace_context", "description": "为一个概念返回回答审计所需的来源、信任、时效、链接与引用边界；不会读取外部网页。", "inputSchema": _schema({"concept_id": {"type": "string"}}, ["concept_id"])},
+    {"name": "okf_create_concept", "description": "创建一个 OKF 概念。写入采用原子替换，并在提交前运行完整校验；失败会回滚。仅用于审核后的知识库维护。", "inputSchema": CREATE_SCHEMA},
+    {"name": "okf_update_concept", "description": "更新 OKF 概念的 frontmatter 或正文。可用 expected_revision 防止覆盖他人修改；提交后校验失败会回滚。", "inputSchema": _schema({**MUTATION_PROPERTIES}, ["concept_id"])},
+    {"name": "okf_delete_concept", "description": "删除 OKF 概念。默认拒绝删除仍被其他概念引用的页面；force=true 才允许。可用 expected_revision 防止误删。", "inputSchema": _schema({"concept_id": {"type": "string"}, "expected_revision": {"type": "string", "minLength": 64, "maxLength": 64}, "force": {"type": "boolean"}}, ["concept_id"])},
 ]
 
 
@@ -205,7 +269,7 @@ def main() -> None:
             if method == "initialize":
                 requested = str(params.get("protocolVersion") or "")
                 protocol = requested if requested in SUPPORTED_PROTOCOLS else "2025-11-25"
-                respond(request_id, {"protocolVersion": protocol, "capabilities": {"tools": {"listChanged": False}, "resources": {"listChanged": False}}, "serverInfo": {"name": "law-wiki-okf-readonly", "version": SERVER_VERSION}, "instructions": "Read-only local legal OKF bundle. Use okf_search then okf_read_concept; source registration is not proof that external content was read."})
+                respond(request_id, {"protocolVersion": protocol, "capabilities": {"tools": {"listChanged": False}, "resources": {"listChanged": False}}, "serverInfo": {"name": "law-wiki-okf", "version": SERVER_VERSION}, "instructions": "Local legal OKF bundle. Use okf_search then okf_read_concept; source registration is not proof that external content was read. Mutations are transactional and validation-gated, and should be used only for reviewed knowledge administration."})
             elif method == "notifications/initialized":
                 continue
             elif method == "tools/list":
